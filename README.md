@@ -12,7 +12,7 @@ around volume and frequency of API requests and limitations around following
 
 ## Usage
 
-####Authentication
+### Authentication
 
 To use the exporter/importer a user needs to have been authenticated into Twitter and have authorized a 3rd party app
 with the required Twitter access level.
@@ -34,7 +34,7 @@ Twitter requests in their name. Once that is done, the user is given a permanent
 ([OAuth tokens](https://www.oauth.com/oauth2-servers/access-tokens/)) that are used for authenticating 
 requests sent to the Twitter API within the realm of the 3rd party app. 
 
-####Exporting
+### Exporting
 
 ```
 python -m tw_frnds_ei.main_exporter [TW_OAUTH_USER_TOKEN] [TW_OAUTH_USER_TOKEN_SECRET] 
@@ -48,7 +48,7 @@ the authenticated user's friends (Twitter profiles the user follows). The CSV fi
 in the output on finalization.
 
 
-####Importing
+### Importing
 
 ```
 python -m tw_frnds_ei.main_importer [TW_OAUTH_USER_TOKEN] [TW_OAUTH_USER_TOKEN_SECRET] [CSV_FILE_NAME] 
