@@ -155,3 +155,18 @@ def test__parse_twithon_error_user_blocked(tw_client_ok):
     assert is_data_err
     assert err_msg_for_user
     logger.info("========== test__parse_twithon_error_user_blocked ============")
+
+
+def test__parse_twithon_error_account_protected(tw_client_ok):
+    logger.info("---------- test__parse_twithon_error_account_protected ----------")
+    user_name = "acc_protected_user_error"
+    err_msg = "already requested to follow"
+    error_returned = TwythonError(msg=err_msg)
+    mock_client = tw_client_ok(user_name)
+    importer = FriendsImporter(mock_client, None, None)
+
+    is_data_err, err_msg_for_user = importer._parse_twithon_error(error_returned, user_name)
+
+    assert is_data_err
+    assert err_msg_for_user
+    logger.info("========== test__parse_twithon_error_account_protected ============")

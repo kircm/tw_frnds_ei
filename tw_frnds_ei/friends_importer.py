@@ -324,8 +324,7 @@ class FriendsImporter:
 
     def _parse_twithon_error(self, err, screen_name):
         # Very simple, naive parsing of an actual error string returned by Twitter.
-        # It only recognizes the situation when a user being imported was not found.
-        # This is the only error (that we know of) that requires the user to modify
+        # It only recognizes the situations (that we know of) that requires the user to modify
         # the CSV file to remove a row that cannot and will not ever be imported.
         #
         # Returns: tuple with:
@@ -333,15 +332,16 @@ class FriendsImporter:
         #   - str potential message for the end user
         cannot_find_user_err: bool = err.msg.find("Cannot find specified user") >= 0
         you_are_blocked_by_user_err: bool = err.msg.find("You have been blocked") >= 0
+        already_requested_user: bool = err.msg.find("already requested to follow") >= 0
 
-        if cannot_find_user_err or you_are_blocked_by_user_err:
+        if cannot_find_user_err or you_are_blocked_by_user_err or already_requested_user:
             self.ulog.debug(f"Parsed Twitter error message and it indicates problem with the data. "
                             f"Err msg: |{err.msg}|")
 
         if cannot_find_user_err:
             error_msg_for_user = \
-                f"The twitter user: {screen_name} could not be followed - It doesn't exist anymore!" + \
-                " Please remove it from the CSV file along with users that could be imported and submit it again."
+                f"The twitter user: {screen_name} could not be followed - It doesn't exist anymore! " + \
+                "Please remove it from the CSV file along with users that could be imported and submit it again."
             return True, error_msg_for_user
 
         elif you_are_blocked_by_user_err:
@@ -349,6 +349,12 @@ class FriendsImporter:
                 f"The twitter user: {screen_name} could not be followed - They blocked your account from" \
                 "following them! Please remove it from the CSV file along with users that could be imported " \
                 "and submit it again."
+            return True, error_msg_for_user
+
+        if already_requested_user:
+            error_msg_for_user = \
+                f"The twitter user: {screen_name} could not be followed - The account is protected. " + \
+                "Please remove it from the CSV file along with users that could be imported and submit it again."
             return True, error_msg_for_user
 
         else:
