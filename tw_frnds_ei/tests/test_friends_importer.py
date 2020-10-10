@@ -1,5 +1,7 @@
 import logging
 
+from twython import TwythonError
+
 from tw_frnds_ei.friends_importer import FriendsImporter
 from tw_frnds_ei.tests.config_app_test import IMP_DATA_DIR
 
@@ -104,3 +106,52 @@ def test_importer_irrecoverable_twitter_err(tw_client_nok):
     assert len(friendships_remaining) == 4
     assert friendships_remaining[0]['screen_name'] == "name22"
     logger.info("========== test_importer_irrecoverable_twitter_err ============")
+
+
+# ---------------------
+# private methods tests
+# ---------------------
+
+def test__parse_twithon_error_not_data_problem(tw_client_ok):
+    logger.info("---------- test__parse_twithon_error_not_data_problem ----------")
+    user_name = "not_data_user_error"
+    err_msg = "Some twitter error"
+    error_returned = TwythonError(msg=err_msg)
+    mock_client = tw_client_ok(user_name)
+    importer = FriendsImporter(mock_client, None, None)
+
+    is_data_err, err_msg_for_user = importer._parse_twithon_error(error_returned, user_name)
+
+    assert not is_data_err
+    assert not err_msg_for_user
+    logger.info("========== test__parse_twithon_error_not_data_problem ============")
+
+
+def test__parse_twithon_error_user_not_found(tw_client_ok):
+    logger.info("---------- test__parse_twithon_error_user_not_found ----------")
+    user_name = "not_found_user_error"
+    err_msg = "Cannot find specified user"
+    error_returned = TwythonError(msg=err_msg)
+    mock_client = tw_client_ok(user_name)
+    importer = FriendsImporter(mock_client, None, None)
+
+    is_data_err, err_msg_for_user = importer._parse_twithon_error(error_returned, user_name)
+
+    assert is_data_err
+    assert err_msg_for_user
+    logger.info("========== test__parse_twithon_error_user_not_found ============")
+
+
+def test__parse_twithon_error_user_blocked(tw_client_ok):
+    logger.info("---------- test__parse_twithon_error_user_blocked ----------")
+    user_name = "blocked_user_error"
+    err_msg = "You have been blocked"
+    error_returned = TwythonError(msg=err_msg)
+    mock_client = tw_client_ok(user_name)
+    importer = FriendsImporter(mock_client, None, None)
+
+    is_data_err, err_msg_for_user = importer._parse_twithon_error(error_returned, user_name)
+
+    assert is_data_err
+    assert err_msg_for_user
+    logger.info("========== test__parse_twithon_error_user_blocked ============")

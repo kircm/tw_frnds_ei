@@ -331,18 +331,30 @@ class FriendsImporter:
         # Returns: tuple with:
         #   - bool indicating if there is a required action to be taken by the end user to fix the data
         #   - str potential message for the end user
-        user_err = err.msg.find("Cannot find specified user")
-        if user_err >= 0:
+        cannot_find_user_err: bool = err.msg.find("Cannot find specified user") >= 0
+        you_are_blocked_by_user_err: bool = err.msg.find("You have been blocked") >= 0
+
+        if cannot_find_user_err or you_are_blocked_by_user_err:
             self.ulog.debug(f"Parsed Twitter error message and it indicates problem with the data. "
                             f"Err msg: |{err.msg}|")
+
+        if cannot_find_user_err:
             error_msg_for_user = \
                 f"The twitter user: {screen_name} could not be followed - It doesn't exist anymore!" + \
                 " Please remove it from the CSV file along with users that could be imported and submit it again."
             return True, error_msg_for_user
+
+        elif you_are_blocked_by_user_err:
+            error_msg_for_user = \
+                f"The twitter user: {screen_name} could not be followed - They blocked your account from" \
+                "following them! Please remove it from the CSV file along with users that could be imported " \
+                "and submit it again."
+            return True, error_msg_for_user
+
         else:
             self.ulog.debug(f"Parsed Twitter error message and it's not indicative of a problem with the data. "
                             f"Err msg: |{err.msg}|")
-            return False, ""
+            return False, None
 
     def _build_user_message_process_unfinished(self, msg_details_for_user, screen_names_imported):
         # Build a message for the user after the import process was unsuccessful. There could
