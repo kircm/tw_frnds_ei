@@ -17,18 +17,23 @@ logger.info(f"Application config loaded: {dict(env_config)}")
 # ---------------------
 # Export main's program
 # ---------------------
-if __name__ == "__main__":
-    arg_parser = argparse.ArgumentParser(description="Export the list of users you follow on Twitter to a CSV file.")
-    arg_parser.add_argument("OAUTH_USER_TOKEN")
-    arg_parser.add_argument("OAUTH_USER_TOKEN_SECRET")
-    args = arg_parser.parse_args()
-
+def main(oauth_user_token, oauth_user_token_secret):
     print("\nExport process started...")
     print(f"You may check progress in log file: {log_conf.LOG_FILE}\n")
-    twitter_api_client = Twython(APP_KEY, APP_SECRET, args.OAUTH_USER_TOKEN, args.OAUTH_USER_TOKEN_SECRET)
+    twitter_api_client = Twython(APP_KEY, APP_SECRET, oauth_user_token, oauth_user_token_secret)
     ok, msg, file_name = exp.do_export(twitter_api_client, env_config['EXP_DATA_DIR'])
 
     if ok:
         print("\nThe export finished correctly! Output file:\n", file_name)
     else:
         print("\nERROR when exporting: \n", msg)
+
+    return ok, msg, file_name
+
+
+if __name__ == "__main__":
+    arg_parser = argparse.ArgumentParser(description="Export the list of users you follow on Twitter to a CSV file.")
+    arg_parser.add_argument("OAUTH_USER_TOKEN")
+    arg_parser.add_argument("OAUTH_USER_TOKEN_SECRET")
+    args = arg_parser.parse_args()
+    main(args.OAUTH_USER_TOKEN, args.OAUTH_USER_TOKEN_SECRET)
