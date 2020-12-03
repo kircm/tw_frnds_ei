@@ -12,6 +12,24 @@ around volume and frequency of API requests and limitations around following
 
 ## Usage
 
+### Application environment config
+
+The file `dot_env.example` serves as an example for a `.env` file that must be created and populated with the same
+variables. `.env` is environment-specific and shouldn't be included in source control. It  contains a few variables 
+values that can be changed to modify the application's behavior. 
+
+Those vars are concerned with customizing logging behavior (log file location & name, log level) as well as 
+specifying the data directories where the program will create / look for CSV files to export or import.
+
+Configuration variables examples:
+```
+APP_LOG_DIR=./logs/
+APP_LOG_FILENAME=application.log
+LOG_LEVEL=INFO
+EXP_DATA_DIR=./data/export
+IMP_DATA_DIR=./data/import
+```  
+
 ### Authentication
 
 To use the exporter/importer a user needs to have been authenticated into Twitter and have authorized a 3rd party app
@@ -92,35 +110,22 @@ time is considered necessary, in order to try to resume the process automaticall
 had been paused. That waiting time (during which there is practically no waste of CPU cycles or network activity) 
 can be quite long, sometimes as long as **24h**.   
 
-## Application config
-
-The file `env_config.ini` contains a few variables that can be changed to modify the application's 
-behavior. Those vars are concerned with customizing logging behavior (log file location & name, log level) 
-as well as specifying the data directories where the program will create / look for CSV files to export or import.
-
-Configuration variables examples:
-```
-APP_LOG_DIR=./logs/
-APP_LOG_FILENAME=application.log
-LOG_LEVEL=INFO
-EXP_DATA_DIR=./data/export
-IMP_DATA_DIR=./data/import
-```  
 
 ## Logs
 
 While the program is running it reports the steps it's executing to the application's log file. 
-The user can monitor the steps by tailing the logs: `tail -f ./logs/application.log` 
+The user can monitor the steps by tailing the logs: `tail -f [LOG_FILE]` 
 
 
 ## Data dirs and CSV files
 
-The progam uses predefined directories as fixed locations for CSV files: 
+The progam uses predefined directories as fixed locations for CSV files. Those directories must be specified in the
+`.env` file. Example:
+ 
 ```
-./data/export
-./data/import
+EXP_DATA_DIR=./data/export
+IMP_DATA_DIR=./data/import
 ```
-(predefined directories can be changed in `env_config.ini`)
 
 When exporting, the program creates the file name automatically using this pattern: 
 ```
