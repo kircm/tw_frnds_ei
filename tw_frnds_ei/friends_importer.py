@@ -2,6 +2,7 @@ import copy
 import csv
 import logging
 import random
+from pathlib import Path
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -153,9 +154,10 @@ class FriendsImporter:
         # May raise exception when too many rows have been read
         #
         # Returns: a list of dicts containing twitter user names and user ids
-        data_path = self.data_dir
-        data_path_file = f"{data_path}/{self.csv_file_name}"
-        self.ulog.debug(f"Loading friends from CSV file with relative path: {data_path_file}")
+        data_path = Path(self.data_dir).joinpath(self.user_screen_name).resolve()
+        data_path_file = data_path.joinpath(self.csv_file_name)
+
+        self.ulog.debug(f"Loading friends from CSV file: {data_path_file}")
         friends_data = []
         with open(data_path_file, 'r', newline='') as csv_file:
             reader = csv.reader(csv_file, delimiter=',', quotechar='"')
@@ -169,7 +171,7 @@ class FriendsImporter:
                 row_number += 1
 
         self.ulog.debug(f"Successfully loaded {len(friends_data)} friends to import "
-                        f"from CSV file {self.csv_file_name}")
+                        f"from CSV file {data_path_file}")
         if not friends_data:
             raise EmptyFileError()
 

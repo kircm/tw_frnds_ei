@@ -5,6 +5,7 @@ import time
 from typing import Optional
 from typing import Tuple
 
+from pathlib import Path
 from twython import Twython
 from twython import TwythonError
 from twython import TwythonRateLimitError
@@ -100,8 +101,7 @@ class FriendsExporter:
 
             if ok:
                 self.ulog.info(f"Retrieved {len(friends_data)} friends from the user's Twitter profile.")
-                csv_file_name = self._generate_csv_file_name()
-                exported_file = self._export_friends_csv(csv_file_name, friends_data)
+                exported_file = self._export_friends_csv(friends_data)
                 self.ulog.info(f"Exported CSV file successfully: {exported_file}")
                 return True, None, exported_file
             else:
@@ -227,14 +227,16 @@ class FriendsExporter:
         curr_timestamp_ns = str(time.time_ns())
         return f"friends_{self.user_screen_name}_{curr_timestamp_ns}.csv"
 
-    def _export_friends_csv(self, fname, friends):
-        # Having a file name and friendship data, dump the data to the file in CSV format
+    def _export_friends_csv(self, friends):
+        # Dump friendship data to a file in CSV format
         #
         # Returns: str of the full absolute path and file name of the generated CSV file
-        data_path = self.data_dir
-        data_path_file = f"{data_path}/{fname}"
+        data_path = Path(self.data_dir).joinpath(self.user_screen_name).resolve()
+        data_path.mkdir(parents=True, exist_ok=True)
+        data_path_file = data_path.joinpath(self._generate_csv_file_name())
+
         self.ulog.debug(f"Starting data export of {len(friends)} friends "
-                        f"to file {fname} in relative path {data_path}")
+                        f"to file {data_path_file}")
         with open(data_path_file, 'w', newline='') as csv_file:
             full_path_file_name = os.path.realpath(csv_file.name)
             writer = csv.writer(csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)

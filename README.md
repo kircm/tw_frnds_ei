@@ -119,7 +119,8 @@ The user can monitor the steps by tailing the logs: `tail -f [LOG_FILE]`
 
 ## Data dirs and CSV files
 
-The progam uses predefined directories as fixed locations for CSV files. Those directories must be specified in the
+The progam uses predefined directories as root paths for placing or reading CSV files. 
+Those directories must be specified in the
 `.env` file. Example:
  
 ```
@@ -127,15 +128,20 @@ EXP_DATA_DIR=./data/export
 IMP_DATA_DIR=./data/import
 ```
 
-When exporting, the program creates the file name automatically using this pattern: 
+When exporting, the program creates a subdirectory and the file name automatically using the pattern: 
 ```
-friends_[TWITTER_USER_NAME]_[TIMESTAMP].csv
+[TWITTER_USER_NAME]/friends_[TWITTER_USER_NAME]_[TIMESTAMP].csv
 ```
 where:
  - `TWITTER_USER_NAME` is user name of the Twitter authenticated user that the program is running for. 
  - `TIMESTAMP` a timestamp of the moment the file was created, to force new files being created at each run.
 
-When importing, the user can specify any file name. That file should be present in the predefined import data directory.
+When importing, the user can specify any file name. 
+That file should be present in the import data directory witin a subdirectory named after the corresponding twitter
+username. Example:
+```
+[TWITTER_USER_NAME]/my_friends_to_import.csv
+```
 
 ## Unit tests
 
