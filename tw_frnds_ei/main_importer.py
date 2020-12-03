@@ -11,7 +11,7 @@ from tw_frnds_ei.config_auth import APP_KEY
 from tw_frnds_ei.config_auth import APP_SECRET
 
 logger = logging.getLogger(__name__)
-logger.info(f"Logging enabled. Log file: {log_conf.LOG_FILE}")
+logger.info(f"Logging enabled. Log file: {log_conf.LOG_BASE_FILE_NAME}")
 logger.info(f"Application config loaded: {dict(env_config)}")
 
 
@@ -20,7 +20,7 @@ logger.info(f"Application config loaded: {dict(env_config)}")
 # ---------------------
 def main(oauth_user_token, oauth_user_token_secret, csv_file_name):
     print("\nImport process started...")
-    print(f"You may check progress in log file: {log_conf.LOG_FILE}\n")
+    print(f"You may check progress in log file: {log_conf.LOG_BASE_FILE_NAME}\n")
     twitter_api_client = Twython(APP_KEY, APP_SECRET, oauth_user_token, oauth_user_token_secret)
     ok, msg, friendships_remaining = imp.do_import(twitter_api_client, env_config['IMP_DATA_DIR'], csv_file_name)
 
