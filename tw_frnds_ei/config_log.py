@@ -12,17 +12,18 @@ LOG_LEVEL = env_config['LOG_LEVEL']
 pathlib.Path(env_config['APP_LOG_DIR']).mkdir(parents=True, exist_ok=True)
 
 root_logger = logging.root
-root_logger.setLevel(logging.getLevelName(LOG_LEVEL))
 
-logging_file_handler = RotatingFileHandler(filename=LOG_FILE,
-                                           mode="a",
-                                           encoding="UTF-8",
-                                           maxBytes=10485760,  # 10MB
-                                           backupCount=9)
-logging_file_handler.setFormatter(Formatter(LOG_FORMAT))
-root_logger.addHandler(logging_file_handler)
+if not root_logger.hasHandlers():
+    root_logger.setLevel(logging.getLevelName(LOG_LEVEL))
+    logging_file_handler = RotatingFileHandler(filename=LOG_FILE,
+                                               mode="a",
+                                               encoding="UTF-8",
+                                               maxBytes=10485760,  # 10MB
+                                               backupCount=9)
+    logging_file_handler.setFormatter(Formatter(LOG_FORMAT))
+    root_logger.addHandler(logging_file_handler)
 
-LOG_BASE_FILE_NAME = logging_file_handler.baseFilename
+LOG_BASE_FILE_NAME = root_logger.handlers[0].baseFilename
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
