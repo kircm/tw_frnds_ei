@@ -108,6 +108,25 @@ def test_importer_skipped_user_twitter_data_err(tw_client_skip):
     logger.info("========== test_importer_skipped_user_twitter_data_err ============")
 
 
+def test_importer_twitter_irrecoverable_err(tw_client_abort):
+    logger.info("---------- test_importer_twitter_irrecoverable_err ----------")
+    user_name = "erroring_user"
+    user_id_err = 12349  # this user id will fail in the mock twython client
+    mock_client = tw_client_abort(user_name, user_id_err=user_id_err)
+    importer = FriendsImporter(mock_client, IMP_DATA_DIR, "good_csv.test_csv")
+    importer.RETRY_SLEEP_CHECK_EVERY_SECS = 4
+    importer.RETRY_SHORT_SECONDS_TO_WAIT = 6
+    importer.RETRY_LONG_SECONDS_TO_WAIT = 10
+
+    ok, msg, friendships_remaining = importer.process()
+
+    assert not ok
+    assert msg.find("we added") >= 0
+    assert len(friendships_remaining) == 4
+    assert friendships_remaining[0]['fr_id'] == user_id_err
+    logger.info("========== test_importer_twitter_irrecoverable_err ============")
+
+
 # ---------------------
 # private methods tests
 # ---------------------
@@ -120,11 +139,28 @@ def test__parse_twithon_error_not_data_problem(tw_client_ok):
     mock_client = tw_client_ok(user_name)
     importer = FriendsImporter(mock_client, None, None)
 
-    is_data_err, err_msg_for_user = importer._parse_twithon_error(error_returned, user_name)
+    is_data_error, reason_for_skipping, irrecoverable_error = importer._parse_twithon_error(error_returned, user_name)
 
-    assert not is_data_err
-    assert not err_msg_for_user
+    assert not is_data_error
+    assert not reason_for_skipping
+    assert not irrecoverable_error
     logger.info("========== test__parse_twithon_error_not_data_problem ============")
+
+
+def test__parse_twithon_error_irrecoverable_error(tw_client_ok):
+    logger.info("---------- test__parse_twithon_error_irrecoverable_error ----------")
+    user_name = "not_data_user_error"
+    err_msg = "401 (Unauthorized), Invalid or expired token"
+    error_returned = TwythonError(msg=err_msg)
+    mock_client = tw_client_ok(user_name)
+    importer = FriendsImporter(mock_client, None, None)
+
+    is_data_error, reason_for_skipping, irrecoverable_error = importer._parse_twithon_error(error_returned, user_name)
+
+    assert not is_data_error
+    assert not reason_for_skipping
+    assert irrecoverable_error
+    logger.info("========== test__parse_twithon_error_irrecoverable_error ============")
 
 
 def test__parse_twithon_error_user_not_found(tw_client_ok):
@@ -135,10 +171,11 @@ def test__parse_twithon_error_user_not_found(tw_client_ok):
     mock_client = tw_client_ok(user_name)
     importer = FriendsImporter(mock_client, None, None)
 
-    is_data_err, err_msg_for_user = importer._parse_twithon_error(error_returned, user_name)
+    is_data_error, reason_for_skipping, irrecoverable_error = importer._parse_twithon_error(error_returned, user_name)
 
-    assert is_data_err
-    assert err_msg_for_user
+    assert is_data_error
+    assert reason_for_skipping
+    assert not irrecoverable_error
     logger.info("========== test__parse_twithon_error_user_not_found ============")
 
 
@@ -150,10 +187,11 @@ def test__parse_twithon_error_user_blocked(tw_client_ok):
     mock_client = tw_client_ok(user_name)
     importer = FriendsImporter(mock_client, None, None)
 
-    is_data_err, err_msg_for_user = importer._parse_twithon_error(error_returned, user_name)
+    is_data_error, reason_for_skipping, irrecoverable_error = importer._parse_twithon_error(error_returned, user_name)
 
-    assert is_data_err
-    assert err_msg_for_user
+    assert is_data_error
+    assert reason_for_skipping
+    assert not irrecoverable_error
     logger.info("========== test__parse_twithon_error_user_blocked ============")
 
 
@@ -165,8 +203,9 @@ def test__parse_twithon_error_account_protected(tw_client_ok):
     mock_client = tw_client_ok(user_name)
     importer = FriendsImporter(mock_client, None, None)
 
-    is_data_err, err_msg_for_user = importer._parse_twithon_error(error_returned, user_name)
+    is_data_error, reason_for_skipping, irrecoverable_error = importer._parse_twithon_error(error_returned, user_name)
 
-    assert is_data_err
-    assert err_msg_for_user
+    assert is_data_error
+    assert reason_for_skipping
+    assert not irrecoverable_error
     logger.info("========== test__parse_twithon_error_account_protected ============")

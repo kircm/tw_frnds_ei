@@ -55,3 +55,16 @@ def tw_client_skip(request):
         return mc
 
     return _tw_client_skip
+
+
+@pytest.fixture(params=[MockTwython.SCENARIO_ABORT])
+def tw_client_abort(request):
+    def _tw_client_abort(user_name, num_friends=None, data_pages=None, page_err=None, user_id_err=None):
+        mc = MockTwython(user_name, request.param)
+        mc.num_friends = num_friends
+        mc.data_pages = data_pages
+        mc.page_err = page_err
+        mc.user_id_err = user_id_err
+        return mc
+
+    return _tw_client_abort

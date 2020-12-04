@@ -59,8 +59,8 @@ class FriendsImporter:
     """
 
     MAX_CSV_ROWS = MAX_NUM_FRIENDS
-    RETRY_SHORT_SECONDS_TO_WAIT = 900  # 15 minutes
-    RETRY_LONG_SECONDS_TO_WAIT = 90000  # 25 hours
+    RETRY_SHORT_SECONDS_TO_WAIT = 300  # 5 minutes
+    RETRY_LONG_SECONDS_TO_WAIT = 900  # 15 minutes
     RETRY_SLEEP_CHECK_EVERY_SECS = 30  # Number of seconds for the retry waiter to periodically check the clock
     MAX_FRIEND_REQUESTS_PER_DAY = 400  # Respect Twitter's daily limits on following accounts
     THROTTLE_SLEEP_CHECK_EVERY_SECS = 30  # Number of seconds the throttler will periodically check the clock
@@ -98,7 +98,7 @@ class FriendsImporter:
             return False, err_msg, None
 
         self.ulog.info(f"Importing {len(friends_data)} friends.")
-        ok, screen_names_imported, friendships_remaining, msg_details_for_user = \
+        ok, screen_names_imported, friendships_remaining, err_msg_details_for_user = \
             self._throttle_friendship_requests(friends_data=friends_data)
 
         if ok:
@@ -107,7 +107,7 @@ class FriendsImporter:
             return True, msg, friendships_remaining
         else:
             self.ulog.info("Importer couldn't finish properly.")
-            msg = self._build_user_message_process_unfinished(msg_details_for_user, screen_names_imported)
+            msg = self._build_user_message_process_unfinished(err_msg_details_for_user, screen_names_imported)
             return False, msg, friendships_remaining
 
     # ---------------
@@ -268,25 +268,30 @@ class FriendsImporter:
 
         except TwythonError as e:
             self.ulog.warn(f"ERROR from Twitter: === {e.error_code} === {e}")
-            retry, reason_for_skipping = self._decide_if_retry(friendship_to_import, e)
+            retry, reason_for_skipping, irrecoverable_error = self._decide_if_retry(friendship_to_import, e)
             if retry:
                 retried += 1
                 return self._handle_retry(friendship_to_import,
                                           retried,
                                           max_retries)
+            elif irrecoverable_error:
+                return False, irrecoverable_error, None
             else:
                 return False, None, reason_for_skipping
 
     def _decide_if_retry(self, friendship_to_import, err):
         screen_name = friendship_to_import['screen_name']
-        is_data_error, reason_for_skipping = self._parse_twithon_error(err, screen_name)
+        is_data_error, reason_for_skipping, irrecoverable_error = self._parse_twithon_error(err, screen_name)
 
         if is_data_error:
             self.ulog.debug(f"Skipping import of {screen_name} due to: '{reason_for_skipping}'")
-            return False, reason_for_skipping
+            return False, reason_for_skipping, None
+        elif irrecoverable_error:
+            self.ulog.warn(f"We got an error that we can't recover from! Stopping process! Error: {err.msg}")
+            return False, None, irrecoverable_error
         else:
             self.ulog.debug(f"Will retry import of {screen_name}")
-            return True, None
+            return True, None, None
 
     def _handle_retry(self,
                       friendship_to_import,
@@ -345,36 +350,44 @@ class FriendsImporter:
         # Returns: tuple with:
         #   - bool indicating if there is a required action to be taken by the end user to fix the data
         #   - str potential message for the end user
+        skip_import = False
+        reason_for_skipping = None
+
         cannot_find_user_err: bool = err.msg.find("Cannot find specified user") >= 0
         you_are_blocked_by_user_err: bool = err.msg.find("You have been blocked") >= 0
         already_requested_user: bool = err.msg.find("already requested to follow") >= 0
+        unauthorized: bool = err.msg.find("401 (Unauthorized), Invalid or expired token") >= 0
 
         if cannot_find_user_err or you_are_blocked_by_user_err or already_requested_user:
+            skip_import = True
             self.ulog.debug(f"Parsed Twitter error message and it indicates problem with the data. "
                             f"Err msg: |{err.msg}|")
-
-        if cannot_find_user_err:
-            error_msg_for_user = \
-                f"The twitter user: {screen_name} could not be followed - It doesn't exist anymore!"
-            return True, error_msg_for_user
-
-        elif you_are_blocked_by_user_err:
-            error_msg_for_user = \
-                f"The twitter user: {screen_name} could not be followed - They blocked your account from " \
-                "following them!"
-            return True, error_msg_for_user
-
-        if already_requested_user:
-            error_msg_for_user = \
-                f"The twitter user: {screen_name} could not be followed - The account is protected."
-            return True, error_msg_for_user
-
         else:
             self.ulog.debug(f"Parsed Twitter error message and it's not indicative of a problem with the data. "
                             f"Err msg: |{err.msg}|")
-            return False, None
 
-    def _build_user_message_process_unfinished(self, msg_details_for_user, screen_names_imported):
+        if cannot_find_user_err:
+            reason_for_skipping = \
+                f"The twitter user: {screen_name} could not be followed - It doesn't exist anymore!"
+        elif you_are_blocked_by_user_err:
+            reason_for_skipping = \
+                f"The twitter user: {screen_name} could not be followed - They blocked your account from " \
+                "following them!"
+        elif already_requested_user:
+            reason_for_skipping = \
+                f"The twitter user: {screen_name} could not be followed - The account is protected."
+
+        if skip_import:
+            return True, reason_for_skipping, None
+
+        if unauthorized:
+            irrecoverable_error = \
+                f"The twitter importer application is not authorized to act on {self.user_screen_name}'s behalf anymore"
+            return False, None, irrecoverable_error
+        else:
+            return False, None, None
+
+    def _build_user_message_process_unfinished(self, err_msg_details_for_user, screen_names_imported):
         # Build a message for the user after the import process was unsuccessful. There could
         # be friendships that were successfully imported and there could be specific details
         # to include in the message
@@ -390,8 +403,8 @@ class FriendsImporter:
                    f"\n{screen_names_imported}\n"
 
         msg += "- More details:\n"
-        if msg_details_for_user:
-            msg += "- " + msg_details_for_user + "\n"
+        if err_msg_details_for_user:
+            msg += "- " + err_msg_details_for_user + "\n"
         else:
             msg += "- You may remove the accounts that were successfully imported from the CSV file " + \
                    "and try again in 24h or so.\n" + \

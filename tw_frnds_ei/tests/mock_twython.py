@@ -13,6 +13,7 @@ class MockTwython:
     SCENARIO_RETRY_NOK = "SCENARIO_RETRY_NOK"
     SCENARIO_NOK = "SCENARIO_NOK"
     SCENARIO_SKIP = "SCENARIO_SKIP"
+    SCENARIO_ABORT = "SCENARIO_ABORT"
 
     def __init__(self, user, scenario):
         self.user = user
@@ -69,6 +70,10 @@ class MockTwython:
         elif self.scenario == self.SCENARIO_SKIP:
             if user_id_to_follow == self.user_id_err:
                 raise TwythonError("Cannot find specified user")
+            return None
+        elif self.scenario == self.SCENARIO_ABORT:
+            if user_id_to_follow == self.user_id_err:
+                raise TwythonError("401 (Unauthorized), Invalid or expired token")
             return None
 
         else:

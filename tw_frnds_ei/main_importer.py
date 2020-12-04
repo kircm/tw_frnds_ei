@@ -11,7 +11,7 @@ from tw_frnds_ei.config_auth import APP_SECRET
 
 logger = logging.getLogger(__name__)
 logger.info(f"Logging enabled. Log file: {log_conf.LOG_BASE_FILE_NAME}")
-logger.info(f"Application config loaded: {dict(env_config)}")
+logger.info(f"Application config loaded. Importer data dir: {env_config['IMP_DATA_DIR']}")
 
 
 # ---------------------
