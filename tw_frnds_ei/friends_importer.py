@@ -102,10 +102,9 @@ class FriendsImporter:
             self._throttle_friendship_requests(friends_data=friends_data)
 
         if ok:
-            assert len(friendships_remaining) == 0, f"friendships_remaining is not empty! {len(friendships_remaining)}"
             self.ulog.info(f"Importer succeeded! Imported {len(screen_names_imported)} friends.")
             msg = self._build_user_message_success(screen_names_imported)
-            return True, msg, None
+            return True, msg, friendships_remaining
         else:
             self.ulog.info("Importer couldn't finish properly.")
             msg = self._build_user_message_process_unfinished(msg_details_for_user, screen_names_imported)
@@ -195,19 +194,20 @@ class FriendsImporter:
         screen_names_imported = []
         for friendship_to_import in friends_data:
 
-            ok, error_msg_for_user = self._create_friendship(friendship_to_import)
+            ok, error_msg_for_user, reason_for_skipping = self._create_friendship(friendship_to_import)
 
             if ok:
                 self.ulog.debug(f"Appending imported friendship: {friendship_to_import} to log.")
                 screen_names_imported.append(friendship_to_import['screen_name'])
                 self.ulog.debug(f"Removing imported friendship: {friendship_to_import} from remaining.")
                 friendships_remaining.remove(friendship_to_import)
+                self._wait_for_next(num_friends)
 
-                # calculate seconds to wait to throttle requests
-                seconds_to_wait, check_every = self._throttle_seconds_to_wait(num_friends)
-                self.ulog.info(f"Throttle: waiting for {seconds_to_wait} seconds...")
-                self.waiter.sleep_for(seconds_to_wait, check_every)
-                self.ulog.info("Throttle: resuming activity")
+            elif reason_for_skipping:
+                idx = friendships_remaining.index(friendship_to_import)
+                friendships_remaining[idx]['reason_for_skipping'] = reason_for_skipping
+                self._wait_for_next(num_friends)
+
             else:
                 self.ulog.warn("Problem importing friendships!")
                 if screen_names_imported:
@@ -219,6 +219,13 @@ class FriendsImporter:
         self.ulog.info(f"Created {len(screen_names_imported)} friendships sucessfully!")
         self.ulog.debug(f"Imported user screen names: {screen_names_imported}")
         return True, screen_names_imported, friendships_remaining, None
+
+    def _wait_for_next(self, num_friends):
+        # calculate seconds to wait to throttle requests
+        seconds_to_wait, check_every = self._throttle_seconds_to_wait(num_friends)
+        self.ulog.info(f"Throttle: waiting for {seconds_to_wait} seconds...")
+        self.waiter.sleep_for(seconds_to_wait, check_every)
+        self.ulog.info("Throttle: resuming activity")
 
     def _throttle_seconds_to_wait(self, num_friends):
         # Calculate the number of seconds to wait depending on the size of the
@@ -257,19 +264,32 @@ class FriendsImporter:
             self.cli.create_friendship(user_id=fr_id)
 
             self.ulog.info(f"Created friendship with: {screen_name} | ID: {fr_id}")
-            return True, None
+            return True, None, None
 
         except TwythonError as e:
             self.ulog.warn(f"ERROR from Twitter: === {e.error_code} === {e}")
-            retried += 1
-            return self._handle_retry(friendship_to_import,
-                                      e,
-                                      retried,
-                                      max_retries)
+            retry, reason_for_skipping = self._decide_if_retry(friendship_to_import, e)
+            if retry:
+                retried += 1
+                return self._handle_retry(friendship_to_import,
+                                          retried,
+                                          max_retries)
+            else:
+                return False, None, reason_for_skipping
+
+    def _decide_if_retry(self, friendship_to_import, err):
+        screen_name = friendship_to_import['screen_name']
+        is_data_error, reason_for_skipping = self._parse_twithon_error(err, screen_name)
+
+        if is_data_error:
+            self.ulog.debug(f"Skipping import of {screen_name} due to: '{reason_for_skipping}'")
+            return False, reason_for_skipping
+        else:
+            self.ulog.debug(f"Will retry import of {screen_name}")
+            return True, None
 
     def _handle_retry(self,
                       friendship_to_import,
-                      err,
                       retried,
                       max_retries):
         # Helper method to handle the retrying logic.
@@ -294,14 +314,7 @@ class FriendsImporter:
         # Returns: tuple with:
         #  - bool indicating success/failure
         #  - str potential message for the end user
-        screen_name = friendship_to_import['screen_name']
-        is_data_error, error_msg_for_user = self._parse_twithon_error(err, screen_name)
-
-        if is_data_error:
-            self.ulog.debug(f"Returning message to user: {error_msg_for_user}")
-            return False, error_msg_for_user
-
-        elif retried < max_retries:
+        if retried < max_retries:
             seconds_to_wait = self.RETRY_SHORT_SECONDS_TO_WAIT * retried
             self.ulog.info(f"Waiting for {seconds_to_wait} seconds...")
             self.waiter.sleep_for(seconds_to_wait, self.RETRY_SLEEP_CHECK_EVERY_SECS)
@@ -322,7 +335,7 @@ class FriendsImporter:
             self.ulog.warn(f"OK, we retried to create friendship with {friendship_to_import} "
                            f"for the last time after {self.RETRY_LONG_SECONDS_TO_WAIT} seconds. "
                            "We are bailing out!")
-            return False, ""
+            return False, "Retried too many times", None
 
     def _parse_twithon_error(self, err, screen_name):
         # Very simple, naive parsing of an actual error string returned by Twitter.
@@ -342,21 +355,18 @@ class FriendsImporter:
 
         if cannot_find_user_err:
             error_msg_for_user = \
-                f"The twitter user: {screen_name} could not be followed - It doesn't exist anymore! " + \
-                "Please remove it from the CSV file along with users that could be imported and submit it again."
+                f"The twitter user: {screen_name} could not be followed - It doesn't exist anymore!"
             return True, error_msg_for_user
 
         elif you_are_blocked_by_user_err:
             error_msg_for_user = \
-                f"The twitter user: {screen_name} could not be followed - They blocked your account from" \
-                "following them! Please remove it from the CSV file along with users that could be imported " \
-                "and submit it again."
+                f"The twitter user: {screen_name} could not be followed - They blocked your account from " \
+                "following them!"
             return True, error_msg_for_user
 
         if already_requested_user:
             error_msg_for_user = \
-                f"The twitter user: {screen_name} could not be followed - The account is protected. " + \
-                "Please remove it from the CSV file along with users that could be imported and submit it again."
+                f"The twitter user: {screen_name} could not be followed - The account is protected."
             return True, error_msg_for_user
 
         else:

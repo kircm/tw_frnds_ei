@@ -88,11 +88,11 @@ def test_importer_retries_ok(tw_client_ok_retries):
     logger.info("========== test_importer_retries_ok ============")
 
 
-def test_importer_irrecoverable_twitter_err(tw_client_nok):
-    logger.info("---------- test_importer_irrecoverable_twitter_err ----------")
-    user_name = "erroring_user"
+def test_importer_skipped_user_twitter_data_err(tw_client_skip):
+    logger.info("---------- test_importer_skipped_user_twitter_data_err ----------")
+    user_name = "importing_user"
     user_id_err = 12349  # this user id will fail in the mock twython client
-    mock_client = tw_client_nok(user_name, user_id_err=user_id_err)
+    mock_client = tw_client_skip(user_name, user_id_err=user_id_err)
     importer = FriendsImporter(mock_client, IMP_DATA_DIR, "good_csv.test_csv")
     importer.RETRY_SLEEP_CHECK_EVERY_SECS = 4
     importer.RETRY_SHORT_SECONDS_TO_WAIT = 6
@@ -100,12 +100,12 @@ def test_importer_irrecoverable_twitter_err(tw_client_nok):
 
     ok, msg, friendships_remaining = importer.process()
 
-    assert not ok
-    assert msg.find("Sorry") >= 0
-    assert msg.find("we couldn't follow") >= 0
-    assert len(friendships_remaining) == 4
-    assert friendships_remaining[0]['screen_name'] == "name22"
-    logger.info("========== test_importer_irrecoverable_twitter_err ============")
+    assert ok
+    assert msg.find("we added") >= 0
+    assert len(friendships_remaining) == 1
+    assert friendships_remaining[0]['fr_id'] == user_id_err
+    assert friendships_remaining[0]['reason_for_skipping'].find("could not be followed") >= 0
+    logger.info("========== test_importer_skipped_user_twitter_data_err ============")
 
 
 # ---------------------

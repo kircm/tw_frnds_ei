@@ -1,6 +1,5 @@
 import argparse
 import logging
-from typing import List
 
 from twython import Twython
 
@@ -30,8 +29,7 @@ def main(oauth_user_token, oauth_user_token_secret, csv_file_name):
         print("\nERROR when importing: \n", msg)
 
     if friendships_remaining:
-        screen_names_remaining: List[str] = list(map(lambda f: f['screen_name'], friendships_remaining))
-        print(f"Friendships not imported: {screen_names_remaining}")
+        print(f"Friendships not imported: {friendships_remaining}")
 
     return ok, msg, friendships_remaining
 

@@ -1,17 +1,18 @@
 import logging
 import time
 
-from twython import TwythonRateLimitError, TwythonError
+from twython import TwythonError
+from twython import TwythonRateLimitError
 
 logger = logging.getLogger(__name__)
 
 
 class MockTwython:
-
     SCENARIO_OK = "SCENARIO_OK"
     SCENARIO_RETRY_OK = "SCENARIO_RETRY_OK"
     SCENARIO_RETRY_NOK = "SCENARIO_RETRY_NOK"
     SCENARIO_NOK = "SCENARIO_NOK"
+    SCENARIO_SKIP = "SCENARIO_SKIP"
 
     def __init__(self, user, scenario):
         self.user = user
@@ -65,7 +66,7 @@ class MockTwython:
             if user_id_to_follow == self.user_id_err:
                 raise TwythonRateLimitError(error_code=403, msg="Too many retries")
             return None
-        elif self.scenario == self.SCENARIO_NOK:
+        elif self.scenario == self.SCENARIO_SKIP:
             if user_id_to_follow == self.user_id_err:
                 raise TwythonError("Cannot find specified user")
             return None
