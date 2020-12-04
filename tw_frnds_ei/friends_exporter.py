@@ -17,7 +17,7 @@ from tw_frnds_ei.waiter import Waiter
 logger = logging.getLogger(__name__)
 
 
-def do_export(cli: Twython, data_dir: str) -> Tuple[bool, Optional[str], Optional[str]]:
+def do_export(cli: Twython, data_dir: str, export_for_user: str = None) -> Tuple[bool, Optional[str], Optional[str]]:
     """Instantiate a new FriendsExporter and trigger the export process.
 
     :param cli: A Tython client already containing authentication data
@@ -26,11 +26,14 @@ def do_export(cli: Twython, data_dir: str) -> Tuple[bool, Optional[str], Optiona
     :param data_dir: The directory where to drop the CSV file containing the exported data
     :type: data_dir: str
 
+    :param export_for_user: The tw user screen name for whom to export friends (defaults to authenticated user)
+    :type: export_for_user: str, optional
+
     :return: The result of the process. It includes boolean OK/NOK, potential
     error message for the user, potential file name location (if export successful)
     :rtype: (bool, str, str)
     """
-    exporter = FriendsExporter(cli, data_dir)
+    exporter = FriendsExporter(cli, data_dir, export_for_user)
     exporter.ulog.info("Exporter created!")
     result = exporter.process()
     exporter.ulog.info("Exporter finished!")
@@ -41,8 +44,8 @@ def do_export(cli: Twython, data_dir: str) -> Tuple[bool, Optional[str], Optiona
 class FriendsExporter:
     """A class encapsulating state and methods for producing a CSV file export containing Twitter friends.
 
-    The generated CSV file will contain the user name and user ids of all friends ("followees") of the authenticated
-    user.
+    The generated CSV file will contain the user name and user ids of all friends ("followees") of a given Twitter
+    user name or by default the friends of the authenticated user.
 
     :param cli: Twython client already instantiated with authentication tokens
     :type cli: twython.Twython
@@ -54,11 +57,12 @@ class FriendsExporter:
     MAX_CURSOR_ITERATIONS = 15  # Max number of data pages to retrieve from Twitter
     RETRY_SLEEP_CHECK_EVERY_SECS = 30  # Number of seconds for the retry waiter to periodically check the clock
 
-    def __init__(self, cli: Twython, data_dir: str) -> None:
+    def __init__(self, cli: Twython, data_dir: str, export_for_user: str = None) -> None:
         """Constructor.
 
         Sets attributes passed in and
         * retrieves the twitter user name that corresponds with the OAuth user token
+        * sets the twitter user name to export friends for
         * instantiates a logger that includes the user name in all logging activity
         """
         self.cli = cli
@@ -67,6 +71,11 @@ class FriendsExporter:
                                             include_entities=False,
                                             include_email=False)
         self.user_screen_name = creds['screen_name']
+        if export_for_user:
+            self.export_for_user = export_for_user
+        else:
+            self.export_for_user = self.user_screen_name
+
         self.waiter = Waiter(self.user_screen_name)
         self.ulog = ScreenNameLogger(logger=logger, screen_name=self.user_screen_name)
 
@@ -84,23 +93,23 @@ class FriendsExporter:
 
         if num_friends_to_export > MAX_NUM_FRIENDS:
             self.ulog.info(f"{num_friends_to_export} friends to export are too many. Bailing out.")
-            user_err_msg = f"{self.user_screen_name} has {num_friends_to_export} friends." + \
+            user_err_msg = f"{self.export_for_user} has {num_friends_to_export} friends." + \
                            f" We only support up until {MAX_NUM_FRIENDS}"
             return False, user_err_msg, None
 
         if num_friends_to_export == 0:
             self.ulog.info("The user is not following any Twitter profile. Bailing out.")
-            user_err_msg = f"{self.user_screen_name} is not following anyone. No file generated."
+            user_err_msg = f"{self.export_for_user} is not following anyone. No file generated."
             return False, user_err_msg, None
 
         else:
             self.ulog.info(
-                f"Retrieving data from the user's Twitter profile ({num_friends_to_export} friends).")
+                f"Retrieving data from Twitter profile: {self.export_for_user} ({num_friends_to_export} friends).")
 
             ok, friends_data, user_err_msg = self._retrieve_data_from_twitter()
 
             if ok:
-                self.ulog.info(f"Retrieved {len(friends_data)} friends from the user's Twitter profile.")
+                self.ulog.info(f"Retrieved {len(friends_data)} friends from Twitter profile: {self.export_for_user}")
                 exported_file = self._export_friends_csv(friends_data)
                 self.ulog.info(f"Exported CSV file successfully: {exported_file}")
                 return True, None, exported_file
@@ -113,16 +122,20 @@ class FriendsExporter:
     # ---------------
 
     def _retrieve_num_friends(self):
-        # Check the friends count for authenticated user. If user has too many friends
+        # Check the number of friends to export. If user has too many friends
         # the export will be aborted.
         #
-        # Returns: the number of friends (people being followed by) the authenticated user
-        self.ulog.debug("Retrieving current user's profile to get friends_count")
-        usr = self.cli.show_user(screen_name=self.user_screen_name,
+        # Returns: the number of friends (people being followed by) of the Twitter profile to export friends for
+        self.ulog.debug(f"Retrieving {self.export_for_user} profile to get friends_count")
+        usr = self.cli.show_user(screen_name=self.export_for_user,
                                  include_entities=False)
         friends_count = usr['friends_count']
-        self.ulog.debug(f"Friends count is {friends_count}")
+        self.ulog.debug(f"Friends count for {self.export_for_user} is {friends_count}")
         return friends_count
+
+    @staticmethod
+    def unauthorized_error(err):
+        return err.msg.find("401 (Unauthorized)") > -1
 
     def _retrieve_data_from_twitter(self, retried=0, max_retries=1):
         # This method is in charge of controling the data retrieval process
@@ -139,7 +152,7 @@ class FriendsExporter:
         #
         # Returns: tuple with:
         #  - bool indicating success/failure
-        #  - list of friendships retrieved from the user's profile (if successful)
+        #  - list of friendships retrieved (if successful)
         #  - str with message to show to user (if unsuccessful)
         try:
 
@@ -158,7 +171,12 @@ class FriendsExporter:
 
         except TwythonError as te:
             self.ulog.warn(f"We got a TwythonError: {te} - Bailing out.")
-            return False, None, "There was an error interacting with Twitter. You may try again in 24h or so."
+            if FriendsExporter.unauthorized_error(te):
+                msg = f"You don't have access to {self.export_for_user} Twitter profile. " \
+                      "It seems to be a protected account."
+            else:
+                msg = "There was an error interacting with Twitter. You may try again in 24h or so."
+            return False, None, msg
 
         else:
             self.ulog.info(f"Successfully produced data for {len(friends_data)} friends to export.")
@@ -201,6 +219,7 @@ class FriendsExporter:
         #  - int number for the next cursor, returned by Twitter
         self.ulog.debug(f"Retrieving partial friends list - cursor: {curs}")
         partial_friends_list = self.cli.get_friends_list(
+            screen_name=self.export_for_user,
             skip_status=True,
             include_user_entities=False,
             count=200,
@@ -221,17 +240,18 @@ class FriendsExporter:
         self.ulog.info(f"Retrying... ({retried}/{max_retries})")
 
     def _generate_csv_file_name(self):
-        # Generate a unique CSV file name using the current authenticated Twitter user and a timestamp.
+        # Generate a unique CSV file name using the Twitter user for whom friends are exported and a timestamp.
         #
         # Returns: an str with the file name to be created
         curr_timestamp_ns = str(time.time_ns())
-        return f"friends_{self.user_screen_name}_{curr_timestamp_ns}.csv"
+        return f"friends_{self.export_for_user}_{curr_timestamp_ns}.csv"
 
     def _export_friends_csv(self, friends):
         # Dump friendship data to a file in CSV format
         #
         # Returns: str of the full absolute path and file name of the generated CSV file
         data_path = Path(self.data_dir).joinpath(self.user_screen_name).resolve()
+        # data_path includes a subdirectory with the currently authenticated twitter user name, the 'owner' of the data
         data_path.mkdir(parents=True, exist_ok=True)
         data_path_file = data_path.joinpath(self._generate_csv_file_name())
 
@@ -242,7 +262,7 @@ class FriendsExporter:
             writer = csv.writer(csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
             for tup in friends:
                 writer.writerow([tup[0], tup[1]])
-        self.ulog.debug(f"Exported {len(friends)} friends to CSV file with relative path {data_path_file}")
+        self.ulog.debug(f"Exported {len(friends)} friends to CSV file: {data_path_file}")
         return full_path_file_name
 
 # **** EOC

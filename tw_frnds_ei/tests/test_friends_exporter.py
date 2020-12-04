@@ -97,3 +97,19 @@ def test_exporter_irrecoverable_twitter_err(tw_client_nok):
     assert msg
     assert file_name is None
     logger.info("========== test_exporter_irrecoverable_twitter_err ============")
+
+
+def test_exporter_exports_for_another_user(tw_client_ok):
+    logger.info("---------- test_exporter_exports_for_another_user ----------")
+    user_name = "jack"
+    user_name_to_export_for = "peter"
+    tw_client = tw_client_ok(user_name, num_friends=10, data_pages=1)
+    exporter = FriendsExporter(tw_client, EXP_DATA_DIR, user_name_to_export_for)
+
+    ok, msg, file_name = exporter.process()
+
+    assert exporter.export_for_user == user_name_to_export_for, f"Should be {user_name_to_export_for}"
+    assert ok
+    assert msg is None
+    assert file_name.find(user_name_to_export_for) > 0
+    logger.info("========== test_exporter_exports_for_another_user ============")
