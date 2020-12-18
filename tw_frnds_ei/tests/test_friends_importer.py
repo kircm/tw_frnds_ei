@@ -18,11 +18,12 @@ def test_importer_fails_csv_file_bad(tw_client_ok):
     mock_client = tw_client_ok(user_name)
     importer = FriendsImporter(mock_client, IMP_DATA_DIR, "bad_csv.test_csv")
 
-    ok, msg, friendships_remaining = importer.process()
+    ok, msg, frnds_imported, frnds_remaining = importer.process()
 
     assert not ok
     assert msg.find("Bad CSV") >= 0
-    assert not friendships_remaining
+    assert not frnds_imported
+    assert not frnds_remaining
     logger.info("========== test_importer_fails_csv_file_bad ============")
 
 
@@ -33,11 +34,12 @@ def test_importer_fails_csv_file_too_big(tw_client_ok):
     importer = FriendsImporter(mock_client, IMP_DATA_DIR, "csv_too_big.test_csv")
     importer.MAX_CSV_ROWS = 10
 
-    ok, msg, friendships_remaining = importer.process()
+    ok, msg, frnds_imported, frnds_remaining = importer.process()
 
     assert not ok
     assert msg.find("CSV file is too big") >= 0
-    assert not friendships_remaining
+    assert not frnds_imported
+    assert not frnds_remaining
     logger.info("========== test_importer_fails_csv_file_too_big ============")
 
 
@@ -47,11 +49,12 @@ def test_importer_fails_csv_empty(tw_client_ok):
     mock_client = tw_client_ok(user_name)
     importer = FriendsImporter(mock_client, IMP_DATA_DIR, "empty_csv.test_csv")
 
-    ok, msg, friendships_remaining = importer.process()
+    ok, msg, frnds_imported, frnds_remaining = importer.process()
 
     assert not ok
     assert msg.find("Empty CSV file") >= 0
-    assert not friendships_remaining
+    assert not frnds_imported
+    assert not frnds_remaining
     logger.info("========== test_importer_fails_csv_empty ============")
 
 
@@ -61,12 +64,13 @@ def test_importer_imports_ok(tw_client_ok):
     mock_client = tw_client_ok(user_name)
     importer = FriendsImporter(mock_client, IMP_DATA_DIR, "good_csv.test_csv")
 
-    ok, msg, friendships_remaining = importer.process()
+    ok, msg, frnds_imported, frnds_remaining = importer.process()
 
     assert importer.user_screen_name == user_name, f"Should be {user_name}"
     assert ok
-    assert msg.find("we added") >= 0
-    assert not friendships_remaining
+    assert not msg
+    assert len(frnds_imported) == 6
+    assert not frnds_remaining
     logger.info("========== test_importer_imports_ok ============")
 
 
@@ -80,11 +84,12 @@ def test_importer_retries_ok(tw_client_ok_retries):
     importer.RETRY_SHORT_SECONDS_TO_WAIT = 6
     importer.RETRY_LONG_SECONDS_TO_WAIT = 10
 
-    ok, msg, friendships_remaining = importer.process()
+    ok, msg, frnds_imported, frnds_remaining = importer.process()
 
     assert ok
-    assert msg.find("we added") >= 0
-    assert not friendships_remaining
+    assert not msg
+    assert len(frnds_imported) == 6
+    assert not frnds_remaining
     logger.info("========== test_importer_retries_ok ============")
 
 
@@ -98,13 +103,14 @@ def test_importer_skipped_user_twitter_data_err(tw_client_skip):
     importer.RETRY_SHORT_SECONDS_TO_WAIT = 6
     importer.RETRY_LONG_SECONDS_TO_WAIT = 10
 
-    ok, msg, friendships_remaining = importer.process()
+    ok, msg, frnds_imported, frnds_remaining = importer.process()
 
     assert ok
-    assert msg.find("we added") >= 0
-    assert len(friendships_remaining) == 1
-    assert friendships_remaining[0]['fr_id'] == user_id_err
-    assert friendships_remaining[0]['reason_for_skipping'].find("could not be followed") >= 0
+    assert not msg
+    assert len(frnds_imported) == 5
+    assert len(frnds_remaining) == 1
+    assert frnds_remaining[0]['fr_id'] == user_id_err
+    assert frnds_remaining[0]['reason_for_skipping'].find("could not be followed") >= 0
     logger.info("========== test_importer_skipped_user_twitter_data_err ============")
 
 
@@ -118,12 +124,13 @@ def test_importer_twitter_irrecoverable_err(tw_client_abort):
     importer.RETRY_SHORT_SECONDS_TO_WAIT = 6
     importer.RETRY_LONG_SECONDS_TO_WAIT = 10
 
-    ok, msg, friendships_remaining = importer.process()
+    ok, msg, frnds_imported, frnds_remaining = importer.process()
 
     assert not ok
     assert msg.find("we added") >= 0
-    assert len(friendships_remaining) == 4
-    assert friendships_remaining[0]['fr_id'] == user_id_err
+    assert len(frnds_imported) == 2
+    assert len(frnds_remaining) == 4
+    assert frnds_remaining[0]['fr_id'] == user_id_err
     logger.info("========== test_importer_twitter_irrecoverable_err ============")
 
 

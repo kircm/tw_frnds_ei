@@ -18,7 +18,8 @@ from tw_frnds_ei.waiter import Waiter
 logger = logging.getLogger(__name__)
 
 
-def do_import(cli: Twython, data_dir: str, csv_file_name: str) -> Tuple[bool, str, Optional[List[Dict[str, str]]]]:
+def do_import(cli: Twython, data_dir: str, csv_file_name: str) \
+        -> Tuple[bool, str, Optional[List[str]], Optional[List[Dict[str, str]]]]:
     """Instantiate a new FriendsImporter and trigger the import process.
 
     :param cli: A Tython client already containing authentication data
@@ -82,20 +83,20 @@ class FriendsImporter:
         self.waiter = Waiter(self.user_screen_name)
         self.ulog = ScreenNameLogger(logger=logger, screen_name=self.user_screen_name)
 
-    def process(self) -> Tuple[bool, str, Optional[List[Dict[str, str]]]]:
+    def process(self) -> Tuple[bool, Optional[str], Optional[List[str]], Optional[List[Dict[str, str]]]]:
         """Start the whole import process.
 
         All the necessary information has been set as instance attributes.
 
         :return: The result of the process. It includes boolean OK/NOK, potential
-        message for the user with further details, potential list of friends that could
-        not be imported.
-        :rtype: (bool, str, list)
+        message for the user with further details, potential list of friends
+        that were imported and potential list of friends that could not be imported.
+        :rtype: (bool, str, str, list)
         """
         ok, friends_data, err_msg = self._load_friends_data()
         if not ok:
             # couldn't even load data from the CSV file
-            return False, err_msg, None
+            return False, err_msg, None, None
 
         self.ulog.info(f"Importing {len(friends_data)} friends.")
         ok, screen_names_imported, friendships_remaining, err_msg_details_for_user = \
@@ -103,12 +104,11 @@ class FriendsImporter:
 
         if ok:
             self.ulog.info(f"Importer succeeded! Imported {len(screen_names_imported)} friends.")
-            msg = self._build_user_message_success(screen_names_imported)
-            return True, msg, friendships_remaining
+            return True, None, screen_names_imported, friendships_remaining
         else:
             self.ulog.info("Importer couldn't finish properly.")
             msg = self._build_user_message_process_unfinished(err_msg_details_for_user, screen_names_imported)
-            return False, msg, friendships_remaining
+            return False, msg, screen_names_imported, friendships_remaining
 
     # ---------------
     # private methods
@@ -411,15 +411,6 @@ class FriendsImporter:
                    "- Twitter API has daily and hourly limits for following people.\n" + \
                    "- It's quite possible we hit a limit eventhough we tried to pace the requests.. :-("
         return msg
-
-    def _build_user_message_success(self, screen_names_imported):
-        # Returns: The successful message!
-        msg = f"Hey, {self.user_screen_name} we added {len(screen_names_imported)} " + \
-              "people that you are following now! " + \
-              "This is the full list: " + \
-              f"\n{screen_names_imported}\n"
-        return msg
-
 
 # **** EOC
 

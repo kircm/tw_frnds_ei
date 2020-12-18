@@ -21,17 +21,21 @@ def main(oauth_user_token, oauth_user_token_secret, csv_file_name):
     print("\nImport process started...")
     print(f"You may check progress in log file: {log_conf.LOG_BASE_FILE_NAME}\n")
     twitter_api_client = Twython(APP_KEY, APP_SECRET, oauth_user_token, oauth_user_token_secret)
-    ok, msg, friendships_remaining = imp.do_import(twitter_api_client, env_config['IMP_DATA_DIR'], csv_file_name)
+    ok, msg, frnds_imported, frnds_remaining = \
+        imp.do_import(twitter_api_client, env_config['IMP_DATA_DIR'], csv_file_name)
 
     if ok:
-        print("\nThe import finished correctly!\n", msg)
+        print(f"\nThe import finished correctly!\n", msg if msg else "")
     else:
         print("\nERROR when importing: \n", msg)
 
-    if friendships_remaining:
-        print(f"Friendships not imported: {friendships_remaining}")
+    if frnds_imported:
+        print(f"\nFriendships imported successfully:\n {frnds_imported}")
 
-    return ok, msg, friendships_remaining
+    if frnds_remaining:
+        print(f"\nFriendships not imported:\n {frnds_remaining}")
+
+    return ok, msg, frnds_imported, frnds_remaining
 
 
 if __name__ == "__main__":
