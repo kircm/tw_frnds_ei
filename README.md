@@ -152,3 +152,4 @@ object to customize it according to the scenarios being tested.
 Tests leave a trace behind: they log activitiy in `./logs/pytest.log` and they generate fake 
 exported CSV files in `tests/data/export` directory. 
 
+
